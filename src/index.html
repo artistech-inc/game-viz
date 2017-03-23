@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Graph View</title>
+        <link rel="stylesheet" href="style.css" type="text/css">
+        <link rel="stylesheet" href="d3.slider.css" />  
+        <meta charset="utf-8">
+        <script src="http://d3js.org/d3.v3.min.js"></script>
+
+        <script src="d3.slider.js"></script>
+        <script type="text/javascript">
+
+            // Determines the aspect ratio of the svg elements (todo, figure out how to
+            // derive this from the div container sizes)
+            var width = 1000;
+            var height = width / 3 * 2;
+            var left;
+            var bottom;
+
+            /**
+             * Highlights a node and the paths to its direct neighbors across the C2
+             * network. In the comms network, these paths may include intermittent nodes.
+             * @param {type} node
+             * @returns {undefined}
+             */
+            function node_click(node) {
+                // reset the entire canvas (todo: make this more efficient)
+
+                d3.selectAll(".node").select("circle")
+                        .attr("fill", "black");
+
+                d3.selectAll(".link")
+                        .style("stroke-width", 1);
+
+                // Because the c2 and comms network links can have overlapping names, we have
+                // to do our colors on the left and right 'div' sections separately. Below,
+                // we will find the nodes associated with this mouse click with 'node.name'
+                // (each graph will have one node that matches). These nodes will be colored
+                // red. We will then highlight the nodes' routes to the c2 one-hop neighbors.
+                [left].forEach(function (canvas) {
+                    canvas.selectAll("#" + node.name)
+                            .call(function (node) {
+                                node.datum().routes.forEach(function (link) {
+                                    canvas.selectAll("#" + link)
+                                            .style("stroke-width", 8);
+                                });
+                            })
+                            .select("circle")
+                            .attr("fill", "red");
+                });
+            }
+
+            var force, link, node, links, nodes;
+
+            /**
+             * Set up the basics for each network. Put the nodes and links on the screen
+             * using a force layout.
+             * @param {type} network
+             * @param {type} canvas
+             * @returns {undefined}
+             */
+            function graph_setup(network, canvas) {
+                force = d3.layout.force()
+                        .gravity(.05)
+                        .distance(100)
+                        .charge(-100)
+                        .size([width, height])
+                        .nodes(network.nodes)
+                        .links(network.links)
+                        .start();
+
+                link = canvas.selectAll(".link")
+                        .data(network.links);
+
+                node = canvas.selectAll(".node")
+                        .data(network.nodes)
+                        .enter().append("g")
+                        .attr("class", "node")
+                        .attr("id", function (d) {
+                            return d.name;
+                        })
+                        .call(force.drag);
+
+                nodes = force.nodes();
+                links = force.links();
+                link = link.data(links);
+
+                link.enter().append("line")
+                        .attr("class", "link")
+                        .attr("id", function (d) {
+                            return d.name;
+                        })
+                        .style("stroke-width", 1);
+                link.exit()
+                        .remove();
+
+                node.append("circle")
+                        .attr("r", "5")
+                        .on("click", node_click);
+
+                node.append("text")
+                        .attr("dx", 12)
+                        .attr("dy", ".35em")
+                        .text(function (d) {
+                            return d.name;
+                        });
+
+                force.on("tick", function () {
+                    link.attr("x1", function (d) {
+                        if (d.source !== null) {
+                            return d.source.x;
+                        }
+                    })
+                            .attr("y1", function (d) {
+                                if (d.source !== null) {
+                                    return d.source.y;
+                                }
+                            })
+                            .attr("x2", function (d) {
+                                if (d.target !== null) {
+                                    return d.target.x;
+                                }
+                            })
+                            .attr("y2", function (d) {
+                                if (d.target !== null) {
+                                    return d.target.y;
+                                }
+                            });
+
+                    node.attr("transform", function (d) {
+                        return "translate(" + d.x + "," + d.y + ")";
+                    });
+                });
+                d3.select('#slider3text').text(network.time + ": " + links.length);
+            }
+
+            /**
+             * http://bl.ocks.org/tgk/6068367
+             * @param {type} network
+             * @param {type} canvas
+             * @returns {undefined}
+             */
+            function update_graph(network, canvas) {
+                console.log(network.time);
+                links = links.filter(function (l) {
+                    var found = false;
+                    for (var ii = 0; !found && ii < network.links.length; ii++) {
+                        found = l.name === network.links[ii].name;
+                    }
+                    return found;
+                });
+//                console.log("************************************************links: " + links.length);
+//                for (var jj = 0; !found && jj < links.length; jj++) {
+//                    console.log(links[jj].name);
+//                }
+//                console.log("++++++++++++to add++++++++++++++++++++++: " + links.length);
+                for (var ii = 0; ii < network.links.length; ii++) {
+                    var found = false;
+                    for (var jj = 0; !found && jj < links.length; jj++) {
+                        found = found = links[jj].name === network.links[ii].name;
+                    }
+                    if (!found) {
+//                        console.log(network.links[ii].name);
+                        var src = findNode("n" + network.links[ii].source);
+                        var tgt = findNode("n" + network.links[ii].target);
+                        links.push({source: src, target: tgt, name: network.links[ii].name});
+                    }
+                }
+//                console.log("++++++++++++after add++++++++++++++++++++++: " + links.length);
+            }
+
+            function findNode(name) {
+                for (var ii = 0; ii < nodes.length; ii++) {
+                    if (nodes[ii].name === name) {
+                        return nodes[ii];
+                    }
+                }
+                return null;
+            }
+
+            /****************
+             * Canvas Setup *
+             ****************/
+
+            // Set up left and right svg frames to preserve the widthxheight aspect ratio.
+            // The left frame will hold the c2 network view, the right frame will hold the
+            // comms network view.
+
+            /********************
+             * Chart area Setup *
+             ********************/
+
+            var data;
+            function init() {
+                left = d3.select("body").select("#LeftPanel").append("svg")
+                        .attr("preserveAspectRatio", "xMinYMin meet")
+                        .attr("viewBox", "0 0 " + width + " " + height)
+                        .classed("svg-content-responsive", true);
+                bottom = d3.select("body").select("#BottomPanel").append("svg")
+                        .attr("preserveAspectRatio", "xMinYMax meet")
+                        .attr("viewBox", "0 0 " + width + " " + height)
+                        .classed("svg-content-responsive", true);
+
+                /**********************
+                 * Read the JSON file *
+                 **********************/
+
+                d3.json("game2graph.json", function (json) {
+                    data = json;
+                    d3.select('#slider').call(d3.slider().on("slide", function (evt, value) {
+                        force.stop();
+                        value = Math.max(0, value);
+                        value = Math.min(data.length - 1, value);
+                        update_graph(data[value], left);
+                        restart(left);
+                        d3.select('#slider3text').text(data[value].time + ": " + links.length);
+                    }).max(data.length));
+
+                    // Show networks
+                    graph_setup(data[0], left);
+                });
+            }
+            function restart(canvas) {
+                link = link.data(links);
+
+                link.enter().append("line")
+                        .attr("class", "link")
+                        .attr("id", function (d) {
+                            return d.name;
+                        })
+                        .style("stroke-width", 1);
+                link.exit()
+                        .remove();
+
+                force.start();
+            }
+        </script>
+        <style>
+            /*
+             * Enhancment ideas:
+
+             * 1) Make the graph interactive so you have a human act as the defender or attacker
+             *    -- pros: Would make for an interesting experiment platform.
+             *    -- cons: Lack of control of demo during Capstone (what happens if the
+             *       user does something unexpected?). Also, would the Capstone attendees
+             *       want to interact with the system?
+             *
+             * 2) Add a dropdown menu in the network graph boxes to choose which network
+             *    you are showing. This is to allow showing how changing one of the network
+             *    changes the overall metrics.
+             */
+        </style>
+    </head>
+    <body onload="init();">
+        <span id="slider3text">0</span>
+        <br />
+        <div id="slider"></div>
+        <div>
+            <div id="LeftPanel" style="float: left;" class="network-container"></div>
+            <div id="RightPanel" style="float: right; display: none;" class="network-container"></div>
+            <div id="SelectorPanel" class="selector-container" style="display: none;">
+                <font size="4em">
+                <input type="radio" name="metric-type" id="metric-radio" value="global" checked="checked"> Global Metrics <select id="global-select"></select><br>
+                <input type="radio" name="metric-type" id="metric-radio" value="node"> Per-Node Metrics <select id="node-select"></select> <select id="node-metrics-select"></select><br>
+                </font>
+                <hr />
+                <font size="4em">
+                <input type="radio" name="graph-type" id="graph-radio" value="line" checked="checked"> Line Graph
+                <input type="radio" name="graph-type" id="graph-radio" value="bar"> Bar Graph
+                </font>
+            </div>
+            <div id="BottomPanel" class="graph-container"></div>
+        </div>
+    </body>
+</html>
