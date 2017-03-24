@@ -5,8 +5,7 @@
         <link rel="stylesheet" href="style.css" type="text/css">
         <link rel="stylesheet" href="d3.slider.css" />  
         <meta charset="utf-8">
-        <script src="https://d3js.org/d3.v3.min.js"></script>
-
+        <script src="d3.v3.min.js"></script>
         <script src="d3.slider.js"></script>
         <script type="text/javascript">
 
@@ -40,6 +39,9 @@
                 [left].forEach(function (canvas) {
                     canvas.selectAll("#" + node.name)
                             .call(function (node) {
+                                //selection is done by the routes in the node
+                                //but the node data is 'static' instead
+                                //should cycle through links with said node.
                                 node.datum().routes.forEach(function (link) {
                                     canvas.selectAll("#" + link)
                                             .style("stroke-width", 8);
@@ -142,13 +144,23 @@
              */
             function update_graph(network, canvas) {
                 console.log(network.time);
+                canvas.selectAll(".link").remove();
+                //could do a remove-all, but lazy
                 links = links.filter(function (l) {
-                    var found = false;
-                    for (var ii = 0; !found && ii < network.links.length; ii++) {
-                        found = l.name === network.links[ii].name;
-                    }
-                    return found;
+                    return false;
                 });
+                link = link.data(links);
+
+                link.enter()
+                        .append("line")
+                        .attr("class", "link")
+                        .attr("id", function (d) {
+//                            console.log("appending: " + d.name);
+                            return d.name;
+                        })
+                        .style("stroke-width", 1);
+                link.exit()
+                        .remove();
 //                console.log("************************************************links: " + links.length);
 //                for (var jj = 0; !found && jj < links.length; jj++) {
 //                    console.log(links[jj].name);
@@ -160,12 +172,36 @@
                         found = found = links[jj].name === network.links[ii].name;
                     }
                     if (!found) {
-//                        console.log(network.links[ii].name);
+//                        console.log("pushing: " + network.links[ii].name);
                         var src = findNode("n" + network.links[ii].source);
                         var tgt = findNode("n" + network.links[ii].target);
-                        links.push({source: src, target: tgt, name: network.links[ii].name});
+                        if (src !== null && tgt !== null) {
+//                            console.log(src.name);
+//                            console.log(tgt.name);
+                            links.push({source: src, target: tgt, name: network.links[ii].name});
+                        } else {
+                            if (src === null) {
+                                console.log("null src: " + network.links[ii].source);
+                            }
+                            if (tgt === null) {
+                                console.log("null tgt " + network.links[ii].target);
+                            }
+                        }
+                        link = link.data(links);
+
+                        link.enter()
+                                .append("line")
+                                .attr("class", "link")
+                                .attr("id", function (d) {
+//                                    console.log("appending: " + d.name);
+                                    return d.name;
+                                })
+                                .style("stroke-width", 1);
+                        link.exit()
+                                .remove();
                     }
                 }
+//                console.log(JSON.stringify(network));
 //                console.log("++++++++++++after add++++++++++++++++++++++: " + links.length);
             }
 
@@ -217,21 +253,12 @@
                     }).max(data.length));
 
                     // Show networks
-                    graph_setup(data[0], left);
+                    var copy = JSON.stringify(data[0]);
+                    var copyObj = JSON.parse(copy);
+                    graph_setup(copyObj, left);
                 });
             }
             function restart(canvas) {
-                link = link.data(links);
-
-                link.enter().append("line")
-                        .attr("class", "link")
-                        .attr("id", function (d) {
-                            return d.name;
-                        })
-                        .style("stroke-width", 1);
-                link.exit()
-                        .remove();
-
                 force.start();
             }
         </script>
