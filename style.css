@@ -16,6 +16,12 @@
 .link {
     stroke: #aaa;
 }
+.protected {
+    stroke: green;
+}
+.attacking {
+    stroke: red;
+}
 
 .node text {
     stroke:#333;
