@@ -68,8 +68,8 @@
             function graph_setup(network, canvas) {
                 force = d3.layout.force()
                         .gravity(.05)
-                        .distance(100)
-                        .charge(-100)
+                        .distance(50)
+                        .charge(-1000)
                         .size([width, height])
                         .nodes(network.nodes)
                         .links(network.links)
@@ -92,7 +92,16 @@
                 link = link.data(links);
 
                 link.enter().append("line")
-                        .attr("class", "link")
+                        .attr("class", function (d) {
+                            var ret = "link";
+                            if (d.protected) {
+                                ret += " protected";
+                            }
+                            if (d.attacking) {
+                                ret += " attacking";
+                            }
+                            return ret;
+                        })
                         .attr("id", function (d) {
                             return d.name;
                         })
@@ -169,7 +178,15 @@
                         if (src !== null && tgt !== null) {
                             src.routes.push(network.links[ii].name);
                             tgt.routes.push(network.links[ii].name);
-                            links.push({source: src, target: tgt, name: network.links[ii].name});
+                            links.push(
+                                    {
+                                        source: src,
+                                        target: tgt,
+                                        name: network.links[ii].name,
+                                        protected: network.links[ii].protected,
+                                        attacking: network.links[ii].attacking
+                                    }
+                            );
                         } else {
                             if (src === null) {
                                 console.log("null src: " + network.links[ii].source);
@@ -207,6 +224,7 @@
              ********************/
 
             var data;
+            var slider;
             function init() {
                 left = d3.select("body").select("#LeftPanel").append("svg")
                         .attr("preserveAspectRatio", "xMinYMin meet")
@@ -223,14 +241,15 @@
 
                 d3.json("game2graph.json", function (json) {
                     data = json;
-                    d3.select('#slider').call(d3.slider().on("slide", function (evt, value) {
+                    slider = d3.slider().on("slide", function (evt, value) {
                         force.stop();
                         value = Math.max(0, value);
                         value = Math.min(data.length - 1, value);
                         update_graph(data[value], left);
                         restart(left);
                         d3.select('#slider3text').text(data[value].time + ": " + links.length);
-                    }).max(data.length));
+                    }).max(data.length);
+                    d3.select('#slider').call(slider);
 
                     // Show networks
                     var copy = JSON.stringify(data[0]);
@@ -252,7 +271,16 @@
 
                 link.enter()
                         .append("line")
-                        .attr("class", "link")
+                        .attr("class", function (d) {
+                            var ret = "link";
+                            if (d.protected) {
+                                ret += " protected";
+                            }
+                            if (d.attacking) {
+                                ret += " attacking";
+                            }
+                            return ret;
+                        })
                         .attr("id", function (d) {
 //                            console.log("appending: " + d.name);
                             return d.name;
@@ -262,6 +290,38 @@
                 link.exit()
                         .remove();
                 force.start();
+            }
+            function next() {
+                if (slider.value() < slider.max() - 1) {
+                    slider.value(slider.value() + 1);
+                }
+                sliderToValue(slider.value());
+            }
+            function prev() {
+                if (slider.value() > 0) {
+                    slider.value(slider.value() - 1);
+                }
+                sliderToValue(slider.value());
+            }
+            function sliderToValue(value) {
+                force.stop();
+                value = Math.max(0, value);
+                value = Math.min(data.length - 1, value);
+                update_graph(data[value], left);
+                restart(left);
+                d3.select('#slider3text').text(data[value].time + ": " + links.length);
+
+                document.getElementById("slider").innerHTML = "";
+                slider = d3.slider().on("slide", function (evt, value) {
+                    force.stop();
+                    console.log(value);
+                    value = Math.max(0, value);
+                    value = Math.min(data.length - 1, value);
+                    update_graph(data[value], left);
+                    restart(left);
+                    d3.select('#slider3text').text(data[value].time + ": " + links.length);
+                }).max(data.length).value(value);
+                d3.select('#slider').call(slider);
             }
         </script>
         <style>
@@ -285,7 +345,7 @@
         <br />
         <div id="slider"></div>
         <div>
-            <div id="LeftPanel" style="float: left;" class="network-container"></div>
+            <div id="LeftPanel" style="" class="network-container"></div>
             <div id="RightPanel" style="float: right; display: none;" class="network-container"></div>
             <div id="SelectorPanel" class="selector-container" style="display: none;">
                 <font size="4em">
@@ -297,6 +357,10 @@
                 <input type="radio" name="graph-type" id="graph-radio" value="line" checked="checked"> Line Graph
                 <input type="radio" name="graph-type" id="graph-radio" value="bar"> Bar Graph
                 </font>
+            </div>
+            <div>
+                <input type="button" onclick="prev()" value="Previous" />
+                <input type="button" onclick="next()" value="Next" />
             </div>
             <div id="BottomPanel" class="graph-container"></div>
         </div>
