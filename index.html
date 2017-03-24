@@ -143,11 +143,14 @@
              * @returns {undefined}
              */
             function update_graph(network, canvas) {
-                console.log(network.time);
+//                console.log(network.time);
                 canvas.selectAll(".link").remove();
                 //could do a remove-all, but lazy
                 links = links.filter(function (l) {
                     return false;
+                });
+                nodes.forEach(function(node) {
+                    node.routes = [];
                 });
                 link = link.data(links);
 
@@ -178,6 +181,8 @@
                         if (src !== null && tgt !== null) {
 //                            console.log(src.name);
 //                            console.log(tgt.name);
+                            src.routes.push(network.links[ii].name);
+                            tgt.routes.push(network.links[ii].name);
                             links.push({source: src, target: tgt, name: network.links[ii].name});
                         } else {
                             if (src === null) {
